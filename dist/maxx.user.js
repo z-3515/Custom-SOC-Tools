@@ -13,7 +13,7 @@
 (() => {
   // src/modules/siem/copy-field.js
   function test() {
-    console.log("test func");
+    console.log("test func main");
   }
 
   // src/index.js

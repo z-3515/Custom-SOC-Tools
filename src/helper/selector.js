@@ -1,19 +1,13 @@
 export const SELECTOR = {
-    PAGES: {
-        EVENT_VIEWER: 'div[id="pages"] iframe[id="PAGE_EVENTVIEWER"]',
-        FLOW_VIEWER:  'div[id="pages"] iframe[id="PAGE_FLOWVIEWER"]',
+    IFRAMES: {
+        // Hint dùng cho resolver trong iframeService (match URL)
+        EVENT_VIEWER_HINT: "EventViewer",
+        FLOW_VIEWER_HINT: "FlowViewer",
     },
-
-    SIDEBAR: {
-        MENU: '#sidebar-menu',
-        BUTTONS: '.menu > button',
-    },
-
     TABLE: {
-        TABLE: 'div[id=tableSection] table[id="defaultTable"]',
-        HEAD: 'div[id=tableSection] table[id="defaultTable"] > thead',
-        BODY: 'div[id=tableSection] table[id="defaultTable"] > tbody',
-        CELL: 'div[id=tableSection] table[id="defaultTable"] > tbody > tr > td',
-        DATACELL: 'div[id=tableSection] table[id="defaultTable"] > tbody > tr > td > span',
+        TABLE: 'div[id="tableSection"] table[id="defaultTable"]',
+        BODY:  'div[id="tableSection"] table[id="defaultTable"] > tbody',
+        CELL:  'div[id="tableSection"] table[id="defaultTable"] > tbody > tr > td',
+        DATA_CELL: 'div[id="tableSection"] table[id="defaultTable"] > tbody > tr > td > span',
     }
-}
+};

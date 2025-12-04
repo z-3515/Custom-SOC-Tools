@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Maxx Custom Script
 // @namespace    maxx
-// @version      1.9
+// @version      1.13
 // @description  Maxx Script
 // @author       Maxx
 // @run-at       document-end
@@ -15,118 +15,186 @@
 
 (() => {
   // src/helper/docQueryselector.js
-  function findElm(selector) {
-    return document.querySelector(selector);
-  }
   function findInIframe(iframe) {
-    return iframe.contentDocument || iframe.contentWindow.document;
+    if (!iframe) return null;
+    try {
+      return iframe.contentDocument || iframe.contentWindow && iframe.contentWindow.document || null;
+    } catch (e) {
+      console.warn("[docQueryselector] Kh\xF4ng truy c\u1EADp \u0111\u01B0\u1EE3c iframe:", e);
+      return null;
+    }
   }
 
   // src/helper/selector.js
   var SELECTOR = {
-    PAGES: {
-      EVENT_VIEWER: 'div[id="pages"] iframe[id="PAGE_EVENTVIEWER"]',
-      FLOW_VIEWER: 'div[id="pages"] iframe[id="PAGE_FLOWVIEWER"]'
-    },
-    SIDEBAR: {
-      MENU: "#sidebar-menu",
-      BUTTONS: ".menu > button"
+    IFRAMES: {
+      // Hint dùng cho resolver trong iframeService (match URL)
+      EVENT_VIEWER_HINT: "EventViewer",
+      FLOW_VIEWER_HINT: "FlowViewer"
     },
     TABLE: {
-      TABLE: 'div[id=tableSection] table[id="defaultTable"]',
-      HEAD: 'div[id=tableSection] table[id="defaultTable"] > thead',
-      BODY: 'div[id=tableSection] table[id="defaultTable"] > tbody',
-      CELL: 'div[id=tableSection] table[id="defaultTable"] > tbody > tr > td',
-      DATACELL: 'div[id=tableSection] table[id="defaultTable"] > tbody > tr > td > span'
+      TABLE: 'div[id="tableSection"] table[id="defaultTable"]',
+      BODY: 'div[id="tableSection"] table[id="defaultTable"] > tbody',
+      CELL: 'div[id="tableSection"] table[id="defaultTable"] > tbody > tr > td',
+      DATA_CELL: 'div[id="tableSection"] table[id="defaultTable"] > tbody > tr > td > span'
     }
   };
 
   // src/helper/iframeService.js
   var IframeService = class {
-    constructor(selector) {
-      this.selector = selector;
+    constructor(resolveIframeFn) {
+      this.resolveIframeFn = resolveIframeFn;
       this.iframe = null;
       this.doc = null;
-      this.observer = null;
+      this.tableObserver = null;
     }
+    /**
+     * Khởi tạo lần đầu
+     */
     waitForIframe(callback) {
       const timer = setInterval(() => {
-        const iframe = findElm(this.selector);
-        const doc = iframe ? findInIframe(iframe) : null;
-        if (iframe && doc) {
-          clearInterval(timer);
-          this.iframe = iframe;
-          this.doc = doc;
-          callback(iframe, doc);
-        }
+        const iframe = this.resolveIframeFn();
+        if (!iframe) return;
+        const doc = findInIframe(iframe);
+        if (!doc) return;
+        clearInterval(timer);
+        this.iframe = iframe;
+        this.doc = doc;
+        console.log("[IframeService] Initial iframe ready:", iframe.src);
+        this.attachLoadListener(callback);
+        callback(iframe, doc);
       }, 300);
     }
     /**
-     * FIX: Chỉ coi là "table ready" khi tbody có tr hoặc table có innerHTML
+     * Khi iframe load lại (đổi filter, đổi page)
      */
-    observeTable(callback) {
-      const checkTableReady = () => {
-        const table = this.doc.querySelector(SELECTOR.TABLE.TABLE);
+    attachLoadListener(callback) {
+      if (!this.iframe) return;
+      this.iframe.addEventListener("load", () => {
+        console.log("%c[IframeService] iframe.onload TRIGGERED \u2192 iframe RELOADED", "color: #00eaff");
+        this.doc = findInIframe(this.iframe);
+        if (this.tableObserver) {
+          this.tableObserver.disconnect();
+          this.tableObserver = null;
+        }
+        callback(this.iframe, this.doc);
+      });
+    }
+    /**
+     * Quan sát bảng trong iframe
+     */
+    observeTable(doc, callback) {
+      const check = () => {
+        const table = doc.querySelector(SELECTOR.TABLE.TABLE);
         if (!table) return false;
         const tbody = table.querySelector("tbody");
         if (!tbody) return false;
         if (tbody.children.length > 0) return true;
-        if (table.innerHTML.trim().length > 20) return true;
         return false;
       };
-      const tryBind = setInterval(() => {
-        if (checkTableReady()) {
-          clearInterval(tryBind);
-          if (this.observer) this.observer.disconnect();
-          const table = this.doc.querySelector(SELETOR.TABLE.TABLE);
-          this.observer = new MutationObserver(() => {
-            callback(this.doc);
-          });
-          this.observer.observe(table, {
-            childList: true,
-            subtree: true
-          });
-          console.log("IframeService: TABLE READY & OBSERVED");
-        }
+      const wait = setInterval(() => {
+        if (!check()) return;
+        clearInterval(wait);
+        const table = doc.querySelector(SELECTOR.TABLE.TABLE);
+        console.log("[IframeService] TABLE READY & OBSERVED");
+        this.tableObserver = new MutationObserver(() => {
+          callback(doc);
+        });
+        this.tableObserver.observe(table, {
+          childList: true,
+          subtree: true
+        });
+        callback(doc);
       }, 300);
     }
+    /**
+     * API cuối để dùng từ module (copy-field)
+     */
     onReady(callback) {
-      this.waitForIframe((iframe, doc) => callback(iframe, doc));
-    }
-    onTableUpdate(callback) {
-      this.observeTable(callback);
+      this.waitForIframe(callback);
     }
   };
 
   // src/modules/siem/copy-field.js
+  function createTooltip() {
+    let tip = document.getElementById("maxx-tooltip");
+    if (tip) return tip;
+    tip = document.createElement("div");
+    tip.id = "maxx-tooltip";
+    tip.style.position = "fixed";
+    tip.style.padding = "4px 8px";
+    tip.style.background = "rgba(0,0,0,0.75)";
+    tip.style.color = "#fff";
+    tip.style.borderRadius = "4px";
+    tip.style.fontSize = "12px";
+    tip.style.pointerEvents = "none";
+    tip.style.opacity = "0";
+    tip.style.transition = "opacity 0.15s";
+    tip.style.zIndex = "999999";
+    document.body.appendChild(tip);
+    return tip;
+  }
+  var tooltip = createTooltip();
+  function showTooltip(x, y) {
+    tooltip.textContent = "Shift + Click \u0111\u1EC3 copy";
+    tooltip.style.left = x + 12 + "px";
+    tooltip.style.top = y + 12 + "px";
+    tooltip.style.opacity = "1";
+  }
+  function hideTooltip() {
+    tooltip.style.opacity = "0";
+  }
   function bindCopy(doc) {
     const cells = doc.querySelectorAll(SELECTOR.TABLE.CELL);
+    console.log("[copy-field] Found cells:", cells.length);
     cells.forEach((cell) => {
       if (cell.dataset.copyBound) return;
       cell.dataset.copyBound = "1";
-      cell.addEventListener("click", () => {
-        let span = cell.querySelector("span[value]");
-        let value = span?.getAttribute("value") || cell.textContent.trim();
-        navigator.clipboard.writeText(value);
-        console.log("Copied:", value);
+      cell.addEventListener("mousemove", (e) => {
+        showTooltip(e.clientX, e.clientY);
+      });
+      cell.addEventListener("mouseleave", () => {
+        hideTooltip();
+      });
+      cell.addEventListener("click", (e) => {
+        if (!e.shiftKey) return;
+        const span = cell.querySelector("span[value]");
+        const value = span?.getAttribute("value") || cell.textContent.trim();
+        navigator.clipboard.writeText(value).then(() => {
+          console.log("[copy-field] Copied:", value);
+          tooltip.textContent = "\u0110\xE3 copy!";
+          setTimeout(() => {
+            tooltip.textContent = "Shift + Click \u0111\u1EC3 copy";
+          }, 800);
+        });
       });
     });
-    console.log("Binded", cells.length, "cells");
+    console.log("[copy-field] Binded", cells.length, "cells");
   }
-  function copyField() {
-    const svc = new IframeService(SELECTOR.PAGES.EVENT_VIEWER);
+  function initCopyField() {
+    const svc = new IframeService(() => {
+      const frames = document.querySelectorAll("iframe");
+      for (const f of frames) {
+        const src = f.src || "";
+        if (src.includes("EventViewer") || src.includes("arielSearch")) {
+          return f;
+        }
+      }
+      return null;
+    });
     svc.onReady((iframe, doc) => {
-      bindCopy(doc);
-      svc.onTableUpdate(() => bindCopy(doc));
+      console.log("[copy-field] EventViewer iframe ready:", iframe.src);
+      svc.observeTable(doc, bindCopy);
     });
   }
 
   // src/index.js
   function main() {
     if (window.top !== window.self) return;
-    const url = location.href;
-    if (url.includes("/console/qradar/jsp/QRadar.jsp")) {
-      copyField();
+    const url = window.location.href;
+    if (url.indexOf("/console/qradar/jsp/QRadar.jsp") !== -1) {
+      console.log("[Main] Detected QRadar console, init SIEM modules...");
+      initCopyField();
     }
   }
 

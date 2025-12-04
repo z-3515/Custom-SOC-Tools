@@ -1,6 +1,12 @@
-import { test } from "./modules/siem/copy-field";
+import { copyField } from "./modules/siem/copy-field";
 
 export function main() {
-    console.log("Maxx index run!");
-    test();
+    if (window.top !== window.self) return;
+
+    const url = location.href;
+
+    if (url.includes("/console/qradar/jsp/QRadar.jsp")) {
+        // SIEM functions
+        copyField();
+    }
 }

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Maxx Custom Script
 // @namespace    maxx
-// @version      1.0
+// @version      1.1
 // @description  Maxx Script
 // @author       Maxx
 // @match        *://*/*
@@ -13,7 +13,24 @@
 (() => {
   // src/modules/siem/copy-field.js
   function test() {
-    console.log("test func main");
+    console.log("test func main 2");
+  }
+
+  // src/index.js
+  function main() {
+    console.log("Maxx index run! 3");
+    test();
+  }
+
+  // src/main.js
+  main();
+})();
+
+
+(() => {
+  // src/modules/siem/copy-field.js
+  function test() {
+    console.log("test func");
   }
 
   // src/index.js
@@ -25,3 +42,4 @@
   // src/main.js
   main();
 })();
+

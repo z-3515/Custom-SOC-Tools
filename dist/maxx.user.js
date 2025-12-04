@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Maxx Custom Script
 // @namespace    maxx
-// @version      1.5
+// @version      1.9
 // @description  Maxx Script
 // @author       Maxx
 // @run-at       document-end
@@ -23,7 +23,7 @@
   }
 
   // src/helper/selector.js
-  var SELETOR = {
+  var SELECTOR = {
     PAGES: {
       EVENT_VIEWER: 'div[id="pages"] iframe[id="PAGE_EVENTVIEWER"]',
       FLOW_VIEWER: 'div[id="pages"] iframe[id="PAGE_FLOWVIEWER"]'
@@ -41,33 +41,84 @@
     }
   };
 
-  // src/modules/siem/copy-field.js
-  function copyField() {
-    const iframe = findElm(SELETOR.PAGES.EVENT_VIEWER);
-    const doc = findInIframe(iframe);
-    if (!doc) {
-      console.warn("Iframe EventViewer ch\u01B0a load!");
-      return;
+  // src/helper/iframeService.js
+  var IframeService = class {
+    constructor(selector) {
+      this.selector = selector;
+      this.iframe = null;
+      this.doc = null;
+      this.observer = null;
     }
-    const cells = doc.querySelectorAll(SELETOR.TABLE.CELL);
+    waitForIframe(callback) {
+      const timer = setInterval(() => {
+        const iframe = findElm(this.selector);
+        const doc = iframe ? findInIframe(iframe) : null;
+        if (iframe && doc) {
+          clearInterval(timer);
+          this.iframe = iframe;
+          this.doc = doc;
+          callback(iframe, doc);
+        }
+      }, 300);
+    }
+    /**
+     * FIX: Chỉ coi là "table ready" khi tbody có tr hoặc table có innerHTML
+     */
+    observeTable(callback) {
+      const checkTableReady = () => {
+        const table = this.doc.querySelector(SELECTOR.TABLE.TABLE);
+        if (!table) return false;
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return false;
+        if (tbody.children.length > 0) return true;
+        if (table.innerHTML.trim().length > 20) return true;
+        return false;
+      };
+      const tryBind = setInterval(() => {
+        if (checkTableReady()) {
+          clearInterval(tryBind);
+          if (this.observer) this.observer.disconnect();
+          const table = this.doc.querySelector(SELETOR.TABLE.TABLE);
+          this.observer = new MutationObserver(() => {
+            callback(this.doc);
+          });
+          this.observer.observe(table, {
+            childList: true,
+            subtree: true
+          });
+          console.log("IframeService: TABLE READY & OBSERVED");
+        }
+      }, 300);
+    }
+    onReady(callback) {
+      this.waitForIframe((iframe, doc) => callback(iframe, doc));
+    }
+    onTableUpdate(callback) {
+      this.observeTable(callback);
+    }
+  };
+
+  // src/modules/siem/copy-field.js
+  function bindCopy(doc) {
+    const cells = doc.querySelectorAll(SELECTOR.TABLE.CELL);
     cells.forEach((cell) => {
+      if (cell.dataset.copyBound) return;
+      cell.dataset.copyBound = "1";
       cell.addEventListener("click", () => {
-        let spanWithValue = cell.querySelector("span[value]");
-        let value = null;
-        if (spanWithValue) {
-          value = spanWithValue.getAttribute("value");
-        }
-        if (!value) {
-          value = cell.textContent.trim();
-        }
-        navigator.clipboard.writeText(value).then(() => {
-          console.log("\u0110\xE3 copy:", value);
-        }).catch((err) => {
-          console.error("Copy l\u1ED7i:", err);
-        });
+        let span = cell.querySelector("span[value]");
+        let value = span?.getAttribute("value") || cell.textContent.trim();
+        navigator.clipboard.writeText(value);
+        console.log("Copied:", value);
       });
     });
-    console.log("CopyField activated: click cell \u0111\u1EC3 copy value!");
+    console.log("Binded", cells.length, "cells");
+  }
+  function copyField() {
+    const svc = new IframeService(SELECTOR.PAGES.EVENT_VIEWER);
+    svc.onReady((iframe, doc) => {
+      bindCopy(doc);
+      svc.onTableUpdate(() => bindCopy(doc));
+    });
   }
 
   // src/index.js

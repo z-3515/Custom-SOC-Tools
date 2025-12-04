@@ -1,46 +1,31 @@
-import { findElm, findInIframe } from "../../helper/docQueryselector";
-import { SELETOR } from "../../helper/selector";
+import { IframeService } from "../../helper/iframeService.js";
+import { SELECTOR } from "../../helper/selector.js";
 
-function copyField() {
-    const iframe = findElm(SELETOR.PAGES.EVENT_VIEWER);
-    const doc = findInIframe(iframe);
-
-    if (!doc) {
-        console.warn("Iframe EventViewer chưa load!");
-        return;
-    }
-
-    // Lấy tất cả cell
-    const cells = doc.querySelectorAll(SELETOR.TABLE.CELL);
+function bindCopy(doc) {
+    const cells = doc.querySelectorAll(SELECTOR.TABLE.CELL);
 
     cells.forEach(cell => {
+        if (cell.dataset.copyBound) return;
+        cell.dataset.copyBound = "1";
+
         cell.addEventListener("click", () => {
-            
-            // 1) Ưu tiên lấy từ span[value]
-            let spanWithValue = cell.querySelector("span[value]");
-            let value = null;
+            let span = cell.querySelector("span[value]");
+            let value = span?.getAttribute("value") || cell.textContent.trim();
+            navigator.clipboard.writeText(value);
 
-            if (spanWithValue) {
-                value = spanWithValue.getAttribute("value");
-            }
-
-            // 2) Nếu không có span[value], lấy text content
-            if (!value) {
-                value = cell.textContent.trim();
-            }
-
-            // 3) Copy vào clipboard
-            navigator.clipboard.writeText(value)
-                .then(() => {
-                    console.log("Đã copy:", value);
-                })
-                .catch(err => {
-                    console.error("Copy lỗi:", err);
-                });
+            console.log("Copied:", value);
         });
     });
 
-    console.log("CopyField activated: click cell để copy value!");
+    console.log("Binded", cells.length, "cells");
 }
 
-export { copyField };
+export function copyField() {
+    const svc = new IframeService(SELECTOR.PAGES.EVENT_VIEWER);
+
+    // Lần đầu iframe ready → bind
+    svc.onReady((iframe, doc) => {
+        bindCopy(doc);
+        svc.onTableUpdate(() => bindCopy(doc));  // Chỉ observe TABLE
+    });
+}

@@ -1,4 +1,4 @@
-export const SELETOR = {
+export const SELECTOR = {
     PAGES: {
         EVENT_VIEWER: 'div[id="pages"] iframe[id="PAGE_EVENTVIEWER"]',
         FLOW_VIEWER:  'div[id="pages"] iframe[id="PAGE_FLOWVIEWER"]',

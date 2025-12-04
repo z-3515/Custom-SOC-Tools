@@ -1,11 +1,19 @@
-export function findElm(selector) {
+function findElm(selector) {
     return document.querySelector(selector);
-};
+}
 
-export function findAllElm(selector) {
+function findAllElm(selector) {
     return document.querySelectorAll(selector);
-};
+}
 
-export function findInIframe(iframe) {
-    return iframe.contentDocument || iframe.contentWindow.document;
-};
+function findInIframe(iframe) {
+    if (!iframe) return null;
+    try {
+        return iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document) || null;
+    } catch (e) {
+        console.warn("[docQueryselector] Không truy cập được iframe:", e);
+        return null;
+    }
+}
+
+export { findElm, findAllElm, findInIframe };

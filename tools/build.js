@@ -1,13 +1,18 @@
 import fs from "fs";
 import esbuild from "esbuild";
 
-const META_FILE = "./dist/maxx.user.js";
+const META_FILE = "./dist/meta.js";
+const OUTPUT_FILE = "./dist/maxx.user.js";
 const ENTRY_FILE = "./src/main.js";
 
+// ===============================
 // 1) Đọc metadata
+// ===============================
 let meta = fs.readFileSync(META_FILE, "utf8");
 
-// 2) Regex lấy version dạng MAJOR.MINOR (VD: 1.0, 2.5, 3.12)
+// ===============================
+// 2) Tìm version MAJOR.MINOR
+// ===============================
 const versionRegex = /@version\s+(\d+)\.(\d+)/;
 const match = meta.match(versionRegex);
 
@@ -19,25 +24,34 @@ if (!match) {
 let major = Number(match[1]);
 let minor = Number(match[2]);
 
-// 3) Tăng version phụ (minor)
+// ===============================
+// 3) Tăng version phụ (minor++)
+// ===============================
 minor += 1;
 
-// 4) Tạo version mới (major giữ nguyên)
 const newVersion = `${major}.${minor}`;
 
-// 5) Replace vào metadata
+console.log(`🔼 Tăng version: ${major}.${match[2]} → ${newVersion}`);
+
+// Thay version cũ bằng version mới
 meta = meta.replace(versionRegex, `@version      ${newVersion}`);
 
-console.log(`🔼 Version tăng: ${match[1]}.${match[2]} → ${newVersion}`);
+// ===============================
+// 4) GHI LẠI METADATA
+// ===============================
+// meta.js luôn được update version mới
+fs.writeFileSync(META_FILE, meta);
 
-// 6) Build esbuild
+// ===============================
+// 5) Bundle code bằng esbuild
+// ===============================
 esbuild.build({
     entryPoints: [ENTRY_FILE],
     bundle: true,
     minify: false,
     write: false,
-    format: "iife"
-}).then(result => {
+    format: "iife",
+}).then((result) => {
 
     const finalOutput =
 `${meta}
@@ -45,7 +59,8 @@ esbuild.build({
 ${result.outputFiles[0].text}
 `;
 
-    fs.writeFileSync(META_FILE, finalOutput);
+    // Luôn ghi đè file output để tránh duplicate
+    fs.writeFileSync(OUTPUT_FILE, finalOutput);
 
-    console.log("🎉 Build hoàn tất → dist/maxx.user.js");
+    console.log("🎉 Build thành công → dist/maxx.user.js");
 });
